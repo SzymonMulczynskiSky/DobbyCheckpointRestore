@@ -98,7 +98,9 @@ unsigned NetworkingPlugin::hookHints() const
         IDobbyRdkPlugin::HintFlags::PostInstallationFlag |
         IDobbyRdkPlugin::HintFlags::CreateRuntimeFlag |
         IDobbyRdkPlugin::HintFlags::PostStopFlag |
-        IDobbyRdkPlugin::HintFlags::PostHaltFlag
+        IDobbyRdkPlugin::HintFlags::PostHaltFlag |
+        IDobbyRdkPlugin::HintFlags::PreCheckpoint |
+        IDobbyRdkPlugin::HintFlags::PostRestore
     );
 }
 
@@ -135,6 +137,19 @@ bool NetworkingPlugin::postInstallation()
     return true;
 }
 
+bool NetworkingPlugin::preCheckpoint()
+{
+    AI_LOG_FN_ENTRY();
+    AI_LOG_FN_EXIT();
+    return true;
+}
+
+bool NetworkingPlugin::postRestore()
+{
+    AI_LOG_FN_ENTRY();
+    AI_LOG_FN_EXIT();
+    return true;
+}
 
 /**
  * @brief OCI Hook - Run in host namespace

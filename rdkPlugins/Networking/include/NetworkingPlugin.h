@@ -53,6 +53,8 @@ public:
     bool createRuntime() override;
     bool postHalt() override;
     bool postStop() override;
+    bool preCheckpoint() override;
+    bool postRestore() override;
 
 public:
     std::vector<std::string> getDependencies() const override;

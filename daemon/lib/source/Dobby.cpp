@@ -1338,7 +1338,7 @@ void Dobby::checkpoint(std::shared_ptr<AI_IPC::IAsyncReplySender> replySender)
     }
     else
     {
-        AI_LOG_INFO(DOBBY_CTRL_METHOD_PAUSE "(%d)", descriptor);
+        AI_LOG_INFO(DOBBY_CTRL_METHOD_CHECKPOINT "(%d)", descriptor);
 
         // Try and checkpoint the container on the work queue thread
         auto doCheckpointLambda =

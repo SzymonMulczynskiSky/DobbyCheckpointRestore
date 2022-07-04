@@ -476,6 +476,25 @@ bool DobbyLegacyPluginManager::executePostStartHooks(const std::map<std::string,
                         IDobbyPlugin::PostStartSync);
 }
 
+bool DobbyLegacyPluginManager::executePreCheckpointHooks(const std::map<std::string, Json::Value>& plugins,
+                                                     const ContainerId& id,
+                                                     pid_t pid,
+                                                     const std::string& rootfsPath) const
+{
+    HookFn hookFn =
+        [id, pid, rootfsPath](IDobbyPlugin *plugin, const Json::Value &data)
+        {
+            AI_TRACE_EVENT("Plugins", "plugin::PreCheckpoint",
+                           "name", plugin->name());
+
+            return plugin->preCheckpoint(id, pid, rootfsPath, data);
+        };
+
+    return executeHooks(plugins, hookFn,
+                        IDobbyPlugin::PostStartAsync,
+                        IDobbyPlugin::PostStartSync);
+}
+
 // -----------------------------------------------------------------------------
 /**
  *  @brief Calls the postStop method for the given plugins

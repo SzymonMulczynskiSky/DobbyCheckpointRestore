@@ -80,6 +80,8 @@ public:
         PostStartSync           = (1 << 2),
         PostStopSync            = (1 << 3),
         PreDestructionSync      = (1 << 4),
+        PreCheckpoint           = (1 << 5),
+        PostRestore             = (1 << 6),
 
         PostConstructionAsync   = (1 << 16),
         PreStartAsync           = (1 << 17),
@@ -217,6 +219,14 @@ public:
                                 const std::string& rootfsPath,
                                 const Json::Value& jsonData) = 0;
 
+
+    virtual bool preCheckpoint(const ContainerId& id,
+                                const std::string& rootfsPath,
+                                const Json::Value& jsonData) = 0;
+
+    virtual bool postRestore(const ContainerId& id,
+                                const std::string& rootfsPath,
+                                const Json::Value& jsonData) = 0;
 };
 
 

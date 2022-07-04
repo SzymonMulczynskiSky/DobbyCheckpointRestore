@@ -1535,6 +1535,8 @@ bool DobbyManager::checkpointContainer(int32_t cd)
     const ContainerId &id = it->first;
     const std::unique_ptr<DobbyContainer> &container = it->second;
 
+    onPreCheckpointHook(container);
+
     if (mRunc->checkpoint(id))
     {
         // Set the container state to Checkpoint
@@ -1849,6 +1851,10 @@ std::string DobbyManager::statsOfContainer(int32_t cd) const
             case DobbyContainer::State::Paused:
                 jsonStats["state"] = "paused";
                 break;
+            case DobbyContainer::State::Checkpoint:
+                jsonStats["state"] = "checkpoint";
+                break;
+
             case DobbyContainer::State::Unknown:
                 jsonStats["state"] = "unknown";
                 break;
@@ -2319,6 +2325,39 @@ bool DobbyManager::onPreDestructionHook(const ContainerId &id,
 }
 #endif //defined(LEGACY_COMPONENTS)
 
+bool DobbyManager::onPreCheckpointHook(const std::unique_ptr<DobbyContainer> &container)
+{
+    AI_LOG_FN_ENTRY();
+
+    // Make sure we've initialised rdkPluginManager
+    if (container->rdkPluginManager == nullptr)
+    {
+        AI_LOG_ERROR("Could not run preCheckpoint hook as plugin manager is null");
+        return false;
+    }
+
+    // Check if we've run the plugins before
+    const std::string successFlagPath = container->bundle->path() + "/precheckpointhooksuccess";
+    struct stat sb;
+    if (stat(successFlagPath.c_str(), &sb) == 0)
+    {
+        AI_LOG_INFO("PreCheckpoint hooks have already run - not running again");
+        return true;
+    }
+
+    // Attempt to run the plugins specified in the config file
+    if (!container->rdkPluginManager->runPlugins(IDobbyRdkPlugin::HintFlags::PreCheckpoint))
+    {
+        AI_LOG_ERROR("Failure in postInstallation hook");
+        AI_LOG_FN_EXIT();
+        return false;
+    }
+
+    AI_LOG_INFO("Successfully ran preCheckpoint hook");
+    AI_LOG_FN_EXIT();
+    return true;
+}
+
 /**
  * @brief Perform all the necessary cleanup and run plugins required when
  * a container has terminated.
@@ -2461,13 +2500,11 @@ void DobbyManager::onChildExit()
         // check if the runc process has exited
         int status = 0;
         int rc = waitpid(containerPid, &status, WNOHANG);
-        AI_LOG_INFO("DEDEBUG waitpid for %d returned %d", containerPid, rc);
         if (rc < 0)
         {
             // Sometimes waitpid fails even though container is already dead
             // we can check if it is running by sending "dummy" kill (it will
             // not perform kill, just check if it CAN)
-            AI_LOG_INFO("DEDEBUG will kill %d", containerPid);
             if (kill(containerPid, 0) == -1)
             {
                 // Cannot kill process, probably already dead
@@ -2533,7 +2570,6 @@ void DobbyManager::onChildExit()
             // Exec'd process has exited - remove from the map
             // as erase invalidates iterator we must use its
             // return value instead of simple increment
-            AI_LOG_INFO("DEDEBUG erasing the execit for %d", rc);
             execit = mContainerExecPids.erase(execit);
         }
         else

@@ -78,6 +78,8 @@ public:
         PostStartFlag = (1 << 5),
         PostHaltFlag = (1 << 6),
         PostStopFlag = (1 << 7),
+        PreCheckpoint = (1 << 8),
+        PostRestore = (1 << 9),
         Unknown = 0
     };
 
@@ -122,6 +124,12 @@ public:
 
     // OCI Hook (called after delete)
     virtual bool postStop() = 0;
+
+    // Dobby hook
+    virtual bool preCheckpoint() = 0;
+    
+    // Dobby hook
+    virtual bool postRestore() = 0;
 
 public:
     /**

@@ -145,7 +145,10 @@ IDobbyRdkPlugin::HintFlags determineHookPoint(const std::string &hookName)
 #endif
             {"poststart", IDobbyRdkPlugin::HintFlags::PostStartFlag},
             {"posthalt", IDobbyRdkPlugin::HintFlags::PostHaltFlag},
-            {"poststop", IDobbyRdkPlugin::HintFlags::PostStopFlag}};
+            {"poststop", IDobbyRdkPlugin::HintFlags::PostStopFlag},
+            {"precheckpoint", IDobbyRdkPlugin::HintFlags::PreCheckpoint},
+            {"postrestore", IDobbyRdkPlugin::HintFlags::PostRestore},
+        };
 
     // Convert hook name to lowercase
     std::string lowercase;

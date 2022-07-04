@@ -26,6 +26,9 @@
                 },
                 "poststop": {
                     "$ref": "defs.json#/definitions/ArrayOfHooks"
+                },
+                "precheckpoint": {
+                    "$ref": "defs.json#/definitions/ArrayOfHooks"
                 }
             }
         },

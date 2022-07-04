@@ -175,6 +175,7 @@ private:
     bool onPostInstallationHook(const std::unique_ptr<DobbyContainer> &container);
     bool onPreCreationHook(const std::unique_ptr<DobbyContainer> &container);
     bool onPostHaltHook(const std::unique_ptr<DobbyContainer> &container);
+    bool onPreCheckpointHook(const std::unique_ptr<DobbyContainer> &container);
 
 #if defined(LEGACY_COMPONENTS)
 private:

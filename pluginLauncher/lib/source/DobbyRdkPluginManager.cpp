@@ -667,6 +667,10 @@ bool DobbyRdkPluginManager::executeHook(const std::string &pluginName,
         return plugin->postHalt();
     case IDobbyRdkPlugin::HintFlags::PostStopFlag:
         return plugin->postStop();
+    case IDobbyRdkPlugin::HintFlags::PreCheckpoint:
+        return plugin->preCheckpoint();
+    case IDobbyRdkPlugin::HintFlags::PostRestore:
+        return plugin->postRestore();
     default:
         AI_LOG_ERROR_EXIT("Could not work out which hook method to call");
         return false;
@@ -830,6 +834,12 @@ std::string DobbyRdkPluginManager::HookPointToString(const IDobbyRdkPlugin::Hint
         break;
     case IDobbyRdkPlugin::HintFlags::PostStopFlag:
         hookName = "postStop";
+        break;
+    case IDobbyRdkPlugin::HintFlags::PreCheckpoint:
+        hookName = "preCheckpoint";
+        break;
+    case IDobbyRdkPlugin::HintFlags::PostRestore:
+        hookName = "postRestore";
         break;
     default:
         AI_LOG_ERROR_EXIT("Unknown Hook Point");

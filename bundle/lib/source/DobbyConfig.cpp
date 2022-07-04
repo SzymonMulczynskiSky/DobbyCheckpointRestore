@@ -590,6 +590,12 @@ void DobbyConfig::addPluginLauncherHooks(std::shared_ptr<rt_dobby_schema> cfg, c
     cfg->hooks->poststop = (rt_defs_hook**)realloc(cfg->hooks->poststop, sizeof(rt_defs_hook*) * ++cfg->hooks->poststop_len);
     cfg->hooks->poststop[cfg->hooks->poststop_len-1] = poststopEntry;
 
+    // populate precheckpoint hook with DobbyPluginLauncher args
+    rt_defs_hook *precheckpointEntry = (rt_defs_hook*)calloc(1, sizeof(rt_defs_hook));
+    setPluginHookEntry(precheckpointEntry, "precheckpoint", configPath);
+    cfg->hooks->precheckpoint = (rt_defs_hook**)realloc(cfg->hooks->precheckpoint, sizeof(rt_defs_hook*) * ++cfg->hooks->precheckpoint_len);
+    cfg->hooks->precheckpoint[cfg->hooks->precheckpoint_len-1] = precheckpointEntry;
+
 #ifdef USE_STARTCONTAINER_HOOK
     // startContainer hook paths must resolve in the container namespace,
     // config is in container rootdir
@@ -741,7 +747,8 @@ bool DobbyConfig::convertToCompliant(const ContainerId& id, std::shared_ptr<rt_d
               findPluginLauncherHookEntry(hooks->start_container, hooks->start_container_len) &&
 #endif
               findPluginLauncherHookEntry(hooks->poststart, hooks->poststart_len) &&
-              findPluginLauncherHookEntry(hooks->poststop, hooks->poststop_len)))
+              findPluginLauncherHookEntry(hooks->poststop, hooks->poststop_len) &&
+              findPluginLauncherHookEntry(hooks->precheckpoint, hooks->precheckpoint_len)))
         {
             const std::string extConfigPath = bundlePath + "/config-dobby.json";
             AI_LOG_INFO("rdkPlugins present but hooks aren't set up correctly, attempting "

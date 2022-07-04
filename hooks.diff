@@ -1,0 +1,406 @@
+diff --git a/AppInfrastructure/Logging/include/Logging.h b/AppInfrastructure/Logging/include/Logging.h
+index cbeca06..5a81600 100644
+--- a/AppInfrastructure/Logging/include/Logging.h
++++ b/AppInfrastructure/Logging/include/Logging.h
+@@ -170,9 +170,9 @@ extern void __ai_debug_log_sys_printf(int err, int level, const char *file,
+  **/
+ #else /* (AI_BUILD_TYPE == AI_RELEASE) */
+         #define AI_LOG_FN_ENTRY() \
+-                __AI_LOG_PRINTF(AI_DEBUG_LEVEL_DEBUG, "entry")
++                __AI_LOG_PRINTF(AI_DEBUG_LEVEL_DEBUG, "%s %s entry", __FILE__, __FUNCTION__)
+         #define AI_LOG_FN_EXIT() \
+-                __AI_LOG_PRINTF(AI_DEBUG_LEVEL_DEBUG, "exit")
++                __AI_LOG_PRINTF(AI_DEBUG_LEVEL_DEBUG, "%s %s exit", __FILE__, __FUNCTION__)
+         #define AI_LOG_DEBUG(fmt,...) \
+                 __AI_LOG_PRINTF(AI_DEBUG_LEVEL_DEBUG, fmt, ##__VA_ARGS__)
+         #define AI_LOG_INFO(fmt,...) \
+diff --git a/bundle/lib/source/DobbyConfig.cpp b/bundle/lib/source/DobbyConfig.cpp
+index b69f7f8..215c909 100644
+--- a/bundle/lib/source/DobbyConfig.cpp
++++ b/bundle/lib/source/DobbyConfig.cpp
+@@ -590,6 +590,12 @@ void DobbyConfig::addPluginLauncherHooks(std::shared_ptr<rt_dobby_schema> cfg, c
+     cfg->hooks->poststop = (rt_defs_hook**)realloc(cfg->hooks->poststop, sizeof(rt_defs_hook*) * ++cfg->hooks->poststop_len);
+     cfg->hooks->poststop[cfg->hooks->poststop_len-1] = poststopEntry;
+ 
++    // populate precheckpoint hook with DobbyPluginLauncher args
++    rt_defs_hook *precheckpointEntry = (rt_defs_hook*)calloc(1, sizeof(rt_defs_hook));
++    setPluginHookEntry(precheckpointEntry, "precheckpoint", configPath);
++    cfg->hooks->precheckpoint = (rt_defs_hook**)realloc(cfg->hooks->precheckpoint, sizeof(rt_defs_hook*) * ++cfg->hooks->precheckpoint_len);
++    cfg->hooks->precheckpoint[cfg->hooks->precheckpoint_len-1] = precheckpointEntry;
++
+ #ifdef USE_STARTCONTAINER_HOOK
+     // startContainer hook paths must resolve in the container namespace,
+     // config is in container rootdir
+@@ -741,7 +747,8 @@ bool DobbyConfig::convertToCompliant(const ContainerId& id, std::shared_ptr<rt_d
+               findPluginLauncherHookEntry(hooks->start_container, hooks->start_container_len) &&
+ #endif
+               findPluginLauncherHookEntry(hooks->poststart, hooks->poststart_len) &&
+-              findPluginLauncherHookEntry(hooks->poststop, hooks->poststop_len)))
++              findPluginLauncherHookEntry(hooks->poststop, hooks->poststop_len) &&
++              findPluginLauncherHookEntry(hooks->precheckpoint, hooks->precheckpoint_len)))
+         {
+             const std::string extConfigPath = bundlePath + "/config-dobby.json";
+             AI_LOG_INFO("rdkPlugins present but hooks aren't set up correctly, attempting "
+diff --git a/bundle/runtime-schemas/dobby_schema.json b/bundle/runtime-schemas/dobby_schema.json
+index 4b6a120..4e2f827 100644
+--- a/bundle/runtime-schemas/dobby_schema.json
++++ b/bundle/runtime-schemas/dobby_schema.json
+@@ -26,6 +26,9 @@
+                 },
+                 "poststop": {
+                     "$ref": "defs.json#/definitions/ArrayOfHooks"
++                },
++                "precheckpoint": {
++                    "$ref": "defs.json#/definitions/ArrayOfHooks"
+                 }
+             }
+         },
+diff --git a/daemon/lib/include/IDobbyPlugin.h b/daemon/lib/include/IDobbyPlugin.h
+index 1e8e8cb..4721097 100644
+--- a/daemon/lib/include/IDobbyPlugin.h
++++ b/daemon/lib/include/IDobbyPlugin.h
+@@ -80,6 +80,8 @@ public:
+         PostStartSync           = (1 << 2),
+         PostStopSync            = (1 << 3),
+         PreDestructionSync      = (1 << 4),
++        PreCheckpoint           = (1 << 5),
++        PostRestore             = (1 << 6),
+ 
+         PostConstructionAsync   = (1 << 16),
+         PreStartAsync           = (1 << 17),
+@@ -217,6 +219,14 @@ public:
+                                 const std::string& rootfsPath,
+                                 const Json::Value& jsonData) = 0;
+ 
++
++    virtual bool preCheckpoint(const ContainerId& id,
++                                const std::string& rootfsPath,
++                                const Json::Value& jsonData) = 0;
++
++    virtual bool postRestore(const ContainerId& id,
++                                const std::string& rootfsPath,
++                                const Json::Value& jsonData) = 0;
+ };
+ 
+ 
+diff --git a/daemon/lib/source/Dobby.cpp b/daemon/lib/source/Dobby.cpp
+index a49cf2e..62469c0 100644
+--- a/daemon/lib/source/Dobby.cpp
++++ b/daemon/lib/source/Dobby.cpp
+@@ -1338,7 +1338,7 @@ void Dobby::checkpoint(std::shared_ptr<AI_IPC::IAsyncReplySender> replySender)
+     }
+     else
+     {
+-        AI_LOG_INFO(DOBBY_CTRL_METHOD_PAUSE "(%d)", descriptor);
++        AI_LOG_INFO(DOBBY_CTRL_METHOD_CHECKPOINT "(%d)", descriptor);
+ 
+         // Try and checkpoint the container on the work queue thread
+         auto doCheckpointLambda =
+diff --git a/daemon/lib/source/DobbyLegacyPluginManager.cpp b/daemon/lib/source/DobbyLegacyPluginManager.cpp
+index a18a4e9..8a58cb8 100644
+--- a/daemon/lib/source/DobbyLegacyPluginManager.cpp
++++ b/daemon/lib/source/DobbyLegacyPluginManager.cpp
+@@ -476,6 +476,25 @@ bool DobbyLegacyPluginManager::executePostStartHooks(const std::map<std::string,
+                         IDobbyPlugin::PostStartSync);
+ }
+ 
++bool DobbyLegacyPluginManager::executePreCheckpointHooks(const std::map<std::string, Json::Value>& plugins,
++                                                     const ContainerId& id,
++                                                     pid_t pid,
++                                                     const std::string& rootfsPath) const
++{
++    HookFn hookFn =
++        [id, pid, rootfsPath](IDobbyPlugin *plugin, const Json::Value &data)
++        {
++            AI_TRACE_EVENT("Plugins", "plugin::PreCheckpoint",
++                           "name", plugin->name());
++
++            return plugin->preCheckpoint(id, pid, rootfsPath, data);
++        };
++
++    return executeHooks(plugins, hookFn,
++                        IDobbyPlugin::PostStartAsync,
++                        IDobbyPlugin::PostStartSync);
++}
++
+ // -----------------------------------------------------------------------------
+ /**
+  *  @brief Calls the postStop method for the given plugins
+diff --git a/daemon/lib/source/DobbyManager.cpp b/daemon/lib/source/DobbyManager.cpp
+index 55d4033..de925c1 100644
+--- a/daemon/lib/source/DobbyManager.cpp
++++ b/daemon/lib/source/DobbyManager.cpp
+@@ -1535,6 +1535,8 @@ bool DobbyManager::checkpointContainer(int32_t cd)
+     const ContainerId &id = it->first;
+     const std::unique_ptr<DobbyContainer> &container = it->second;
+ 
++    onPreCheckpointHook(container);
++
+     if (mRunc->checkpoint(id))
+     {
+         // Set the container state to Checkpoint
+@@ -1849,6 +1851,10 @@ std::string DobbyManager::statsOfContainer(int32_t cd) const
+             case DobbyContainer::State::Paused:
+                 jsonStats["state"] = "paused";
+                 break;
++            case DobbyContainer::State::Checkpoint:
++                jsonStats["state"] = "checkpoint";
++                break;
++
+             case DobbyContainer::State::Unknown:
+                 jsonStats["state"] = "unknown";
+                 break;
+@@ -2319,6 +2325,39 @@ bool DobbyManager::onPreDestructionHook(const ContainerId &id,
+ }
+ #endif //defined(LEGACY_COMPONENTS)
+ 
++bool DobbyManager::onPreCheckpointHook(const std::unique_ptr<DobbyContainer> &container)
++{
++    AI_LOG_FN_ENTRY();
++
++    // Make sure we've initialised rdkPluginManager
++    if (container->rdkPluginManager == nullptr)
++    {
++        AI_LOG_ERROR("Could not run preCheckpoint hook as plugin manager is null");
++        return false;
++    }
++
++    // Check if we've run the plugins before
++    const std::string successFlagPath = container->bundle->path() + "/precheckpointhooksuccess";
++    struct stat sb;
++    if (stat(successFlagPath.c_str(), &sb) == 0)
++    {
++        AI_LOG_INFO("PreCheckpoint hooks have already run - not running again");
++        return true;
++    }
++
++    // Attempt to run the plugins specified in the config file
++    if (!container->rdkPluginManager->runPlugins(IDobbyRdkPlugin::HintFlags::PreCheckpoint))
++    {
++        AI_LOG_ERROR("Failure in postInstallation hook");
++        AI_LOG_FN_EXIT();
++        return false;
++    }
++
++    AI_LOG_INFO("Successfully ran preCheckpoint hook");
++    AI_LOG_FN_EXIT();
++    return true;
++}
++
+ /**
+  * @brief Perform all the necessary cleanup and run plugins required when
+  * a container has terminated.
+@@ -2461,13 +2500,11 @@ void DobbyManager::onChildExit()
+         // check if the runc process has exited
+         int status = 0;
+         int rc = waitpid(containerPid, &status, WNOHANG);
+-        AI_LOG_INFO("DEDEBUG waitpid for %d returned %d", containerPid, rc);
+         if (rc < 0)
+         {
+             // Sometimes waitpid fails even though container is already dead
+             // we can check if it is running by sending "dummy" kill (it will
+             // not perform kill, just check if it CAN)
+-            AI_LOG_INFO("DEDEBUG will kill %d", containerPid);
+             if (kill(containerPid, 0) == -1)
+             {
+                 // Cannot kill process, probably already dead
+@@ -2533,7 +2570,6 @@ void DobbyManager::onChildExit()
+             // Exec'd process has exited - remove from the map
+             // as erase invalidates iterator we must use its
+             // return value instead of simple increment
+-            AI_LOG_INFO("DEDEBUG erasing the execit for %d", rc);
+             execit = mContainerExecPids.erase(execit);
+         }
+         else
+diff --git a/daemon/lib/source/DobbyManager.h b/daemon/lib/source/DobbyManager.h
+index f83592a..ba9aa32 100644
+--- a/daemon/lib/source/DobbyManager.h
++++ b/daemon/lib/source/DobbyManager.h
+@@ -175,6 +175,7 @@ private:
+     bool onPostInstallationHook(const std::unique_ptr<DobbyContainer> &container);
+     bool onPreCreationHook(const std::unique_ptr<DobbyContainer> &container);
+     bool onPostHaltHook(const std::unique_ptr<DobbyContainer> &container);
++    bool onPreCheckpointHook(const std::unique_ptr<DobbyContainer> &container);
+ 
+ #if defined(LEGACY_COMPONENTS)
+ private:
+diff --git a/pluginLauncher/lib/include/IDobbyRdkPlugin.h b/pluginLauncher/lib/include/IDobbyRdkPlugin.h
+index 255677e..39a8306 100644
+--- a/pluginLauncher/lib/include/IDobbyRdkPlugin.h
++++ b/pluginLauncher/lib/include/IDobbyRdkPlugin.h
+@@ -78,6 +78,8 @@ public:
+         PostStartFlag = (1 << 5),
+         PostHaltFlag = (1 << 6),
+         PostStopFlag = (1 << 7),
++        PreCheckpoint = (1 << 8),
++        PostRestore = (1 << 9),
+         Unknown = 0
+     };
+ 
+@@ -123,6 +125,12 @@ public:
+     // OCI Hook (called after delete)
+     virtual bool postStop() = 0;
+ 
++    // Dobby hook
++    virtual bool preCheckpoint() = 0;
++    
++    // Dobby hook
++    virtual bool postRestore() = 0;
++
+ public:
+     /**
+      * @brief Should return the names of the plugins this plugin depends on.
+diff --git a/pluginLauncher/lib/source/DobbyRdkPluginManager.cpp b/pluginLauncher/lib/source/DobbyRdkPluginManager.cpp
+index 5dfd044..d65fcd2 100644
+--- a/pluginLauncher/lib/source/DobbyRdkPluginManager.cpp
++++ b/pluginLauncher/lib/source/DobbyRdkPluginManager.cpp
+@@ -667,6 +667,10 @@ bool DobbyRdkPluginManager::executeHook(const std::string &pluginName,
+         return plugin->postHalt();
+     case IDobbyRdkPlugin::HintFlags::PostStopFlag:
+         return plugin->postStop();
++    case IDobbyRdkPlugin::HintFlags::PreCheckpoint:
++        return plugin->preCheckpoint();
++    case IDobbyRdkPlugin::HintFlags::PostRestore:
++        return plugin->postRestore();
+     default:
+         AI_LOG_ERROR_EXIT("Could not work out which hook method to call");
+         return false;
+@@ -831,6 +835,12 @@ std::string DobbyRdkPluginManager::HookPointToString(const IDobbyRdkPlugin::Hint
+     case IDobbyRdkPlugin::HintFlags::PostStopFlag:
+         hookName = "postStop";
+         break;
++    case IDobbyRdkPlugin::HintFlags::PreCheckpoint:
++        hookName = "preCheckpoint";
++        break;
++    case IDobbyRdkPlugin::HintFlags::PostRestore:
++        hookName = "postRestore";
++        break;
+     default:
+         AI_LOG_ERROR_EXIT("Unknown Hook Point");
+     }
+diff --git a/pluginLauncher/tool/source/Main.cpp b/pluginLauncher/tool/source/Main.cpp
+index cdc0c1d..8ce6791 100644
+--- a/pluginLauncher/tool/source/Main.cpp
++++ b/pluginLauncher/tool/source/Main.cpp
+@@ -145,7 +145,10 @@ IDobbyRdkPlugin::HintFlags determineHookPoint(const std::string &hookName)
+ #endif
+             {"poststart", IDobbyRdkPlugin::HintFlags::PostStartFlag},
+             {"posthalt", IDobbyRdkPlugin::HintFlags::PostHaltFlag},
+-            {"poststop", IDobbyRdkPlugin::HintFlags::PostStopFlag}};
++            {"poststop", IDobbyRdkPlugin::HintFlags::PostStopFlag},
++            {"precheckpoint", IDobbyRdkPlugin::HintFlags::PreCheckpoint},
++            {"postrestore", IDobbyRdkPlugin::HintFlags::PostRestore},
++        };
+ 
+     // Convert hook name to lowercase
+     std::string lowercase;
+diff --git a/plugins/Common/include/PluginBase.h b/plugins/Common/include/PluginBase.h
+index 3e9b9af..2ac7977 100644
+--- a/plugins/Common/include/PluginBase.h
++++ b/plugins/Common/include/PluginBase.h
+@@ -76,6 +76,15 @@ public:
+                                 const Json::Value& jsonData) override
+     {   return true;    }
+ 
++    virtual bool preCheckpoint(const ContainerId& id,
++                          const std::string& rootfsPath,
++                          const Json::Value& jsonData) override
++    {   return true;    }
++
++    virtual bool postRestore(const ContainerId& id,
++                                const std::string& rootfsPath,
++                                const Json::Value& jsonData) override
++    {   return true;    }
+ };
+ 
+ #endif // !defined(PLUGINBASE_H)
+diff --git a/rdkPlugins/Common/include/DobbyLoggerBase.h b/rdkPlugins/Common/include/DobbyLoggerBase.h
+index abc3063..9054a6b 100644
+--- a/rdkPlugins/Common/include/DobbyLoggerBase.h
++++ b/rdkPlugins/Common/include/DobbyLoggerBase.h
+@@ -181,6 +181,16 @@ public:
+         return true;
+     };
+ 
++    virtual bool preCheckpoint()
++    {
++        return true;
++    }
++
++    virtual bool postRestore()
++    {
++        return true;
++    }
++
+ public:
+     /**
+      * @brief Should return the names of the plugins this plugin depends on.
+diff --git a/rdkPlugins/Common/include/RdkPluginBase.h b/rdkPlugins/Common/include/RdkPluginBase.h
+index 4d93372..20bb8f1 100644
+--- a/rdkPlugins/Common/include/RdkPluginBase.h
++++ b/rdkPlugins/Common/include/RdkPluginBase.h
+@@ -189,6 +189,16 @@ public:
+         return true;
+     };
+ 
++    virtual bool preCheckpoint()
++    {
++        return true;
++    }
++
++    virtual bool postRestore()
++    {
++        return true;
++    }
++    
+ public:
+     /**
+      * @brief Should return the names of the plugins this plugin depends on.
+diff --git a/rdkPlugins/Networking/include/NetworkingPlugin.h b/rdkPlugins/Networking/include/NetworkingPlugin.h
+index 973c10f..964cdf0 100644
+--- a/rdkPlugins/Networking/include/NetworkingPlugin.h
++++ b/rdkPlugins/Networking/include/NetworkingPlugin.h
+@@ -53,6 +53,8 @@ public:
+     bool createRuntime() override;
+     bool postHalt() override;
+     bool postStop() override;
++    bool preCheckpoint() override;
++    bool postRestore() override;
+ 
+ public:
+     std::vector<std::string> getDependencies() const override;
+diff --git a/rdkPlugins/Networking/source/NetworkingPlugin.cpp b/rdkPlugins/Networking/source/NetworkingPlugin.cpp
+index 2a8710a..865a9ed 100644
+--- a/rdkPlugins/Networking/source/NetworkingPlugin.cpp
++++ b/rdkPlugins/Networking/source/NetworkingPlugin.cpp
+@@ -98,7 +98,9 @@ unsigned NetworkingPlugin::hookHints() const
+         IDobbyRdkPlugin::HintFlags::PostInstallationFlag |
+         IDobbyRdkPlugin::HintFlags::CreateRuntimeFlag |
+         IDobbyRdkPlugin::HintFlags::PostStopFlag |
+-        IDobbyRdkPlugin::HintFlags::PostHaltFlag
++        IDobbyRdkPlugin::HintFlags::PostHaltFlag |
++        IDobbyRdkPlugin::HintFlags::PreCheckpoint |
++        IDobbyRdkPlugin::HintFlags::PostRestore
+     );
+ }
+ 
+@@ -135,6 +137,19 @@ bool NetworkingPlugin::postInstallation()
+     return true;
+ }
+ 
++bool NetworkingPlugin::preCheckpoint()
++{
++    AI_LOG_FN_ENTRY();
++    AI_LOG_FN_EXIT();
++    return true;
++}
++
++bool NetworkingPlugin::postRestore()
++{
++    AI_LOG_FN_ENTRY();
++    AI_LOG_FN_EXIT();
++    return true;
++}
+ 
+ /**
+  * @brief OCI Hook - Run in host namespace

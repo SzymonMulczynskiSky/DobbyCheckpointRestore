@@ -76,6 +76,15 @@ public:
                                 const Json::Value& jsonData) override
     {   return true;    }
 
+    virtual bool preCheckpoint(const ContainerId& id,
+                          const std::string& rootfsPath,
+                          const Json::Value& jsonData) override
+    {   return true;    }
+
+    virtual bool postRestore(const ContainerId& id,
+                                const std::string& rootfsPath,
+                                const Json::Value& jsonData) override
+    {   return true;    }
 };
 
 #endif // !defined(PLUGINBASE_H)

@@ -170,9 +170,9 @@ extern void __ai_debug_log_sys_printf(int err, int level, const char *file,
  **/
 #else /* (AI_BUILD_TYPE == AI_RELEASE) */
         #define AI_LOG_FN_ENTRY() \
-                __AI_LOG_PRINTF(AI_DEBUG_LEVEL_DEBUG, "entry")
+                __AI_LOG_PRINTF(AI_DEBUG_LEVEL_DEBUG, "%s %s entry", __FILE__, __FUNCTION__)
         #define AI_LOG_FN_EXIT() \
-                __AI_LOG_PRINTF(AI_DEBUG_LEVEL_DEBUG, "exit")
+                __AI_LOG_PRINTF(AI_DEBUG_LEVEL_DEBUG, "%s %s exit", __FILE__, __FUNCTION__)
         #define AI_LOG_DEBUG(fmt,...) \
                 __AI_LOG_PRINTF(AI_DEBUG_LEVEL_DEBUG, fmt, ##__VA_ARGS__)
         #define AI_LOG_INFO(fmt,...) \

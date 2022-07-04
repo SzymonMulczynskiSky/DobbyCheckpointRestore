@@ -189,6 +189,16 @@ public:
         return true;
     };
 
+    virtual bool preCheckpoint()
+    {
+        return true;
+    }
+
+    virtual bool postRestore()
+    {
+        return true;
+    }
+    
 public:
     /**
      * @brief Should return the names of the plugins this plugin depends on.
