@@ -140,6 +140,7 @@ bool NetworkingPlugin::postInstallation()
 bool NetworkingPlugin::preCheckpoint()
 {
     AI_LOG_FN_ENTRY();
+    // postHalt();
     AI_LOG_FN_EXIT();
     return true;
 }
@@ -147,6 +148,7 @@ bool NetworkingPlugin::preCheckpoint()
 bool NetworkingPlugin::postRestore()
 {
     AI_LOG_FN_ENTRY();
+    // createRuntime();
     AI_LOG_FN_EXIT();
     return true;
 }

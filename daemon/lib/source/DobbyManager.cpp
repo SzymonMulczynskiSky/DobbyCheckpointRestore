@@ -983,7 +983,7 @@ int32_t DobbyManager::startContainerFromBundle(const ContainerId &id,
                                                const std::vector<std::string>& envVars)
 {
     AI_LOG_FN_ENTRY();
-
+    AI_LOG_WARN("DEDEBUG startContainerFromBundle %s", bundlePath.c_str());
     std::lock_guard<std::mutex> locker(mLock);
 
     // The first step is to check we don't already have a container with the given id
@@ -1540,7 +1540,7 @@ bool DobbyManager::checkpointContainer(int32_t cd)
     if (mRunc->checkpoint(id))
     {
         // Set the container state to Checkpoint
-        // container->state = DobbyContainer::State::Checkpoint;
+        container->state = DobbyContainer::State::Checkpoint;
         AI_LOG_FN_EXIT();
         return true;
     }
@@ -1565,7 +1565,7 @@ bool DobbyManager::restoreContainer(const std::string& id)
     ContainerId containerId = ContainerId::create(id);
 
     const std::string bundlePath("/opt/persistent/rdkservices/Cobalt-0/Container");
-
+/*
 //----------  put the container back to list  ----------------------------------
     // Parse the bundle's json config
     std::shared_ptr<DobbyBundleConfig> config =
@@ -1595,19 +1595,49 @@ bool DobbyManager::restoreContainer(const std::string& id)
     }
     rootfs->setPersistence(true);
 
+    // const std::string rootfsPath = rootfs->path();
+    // std::shared_ptr<rt_dobby_schema> containerConfig(config->config());
+    // auto rdkPluginUtils = std::make_shared<DobbyRdkPluginUtils>(config->config(), startState, id);
+    // auto rdkPluginManager = std::make_shared<DobbyRdkPluginManager>(containerConfig, rootfsPath, PLUGIN_PATH, rdkPluginUtils);
+
     // Create the container wrapper
+    // std::unique_ptr<DobbyContainer> container(new DobbyContainer(bundle, config, rootfs, rdkPluginManager));
     std::unique_ptr<DobbyContainer> container(new DobbyContainer(bundle, config, rootfs));
 //-------------------------------------------------------------------------------------------
+*/
 
+    // find the container
+    auto it = mContainers.cbegin();
+    for (; it != mContainers.cend(); ++it)
+    {
+        if (it->first == containerId)
+            break;
+    }
+
+    if (it == mContainers.end())
+    {
+        AI_LOG_WARN("failed to find container with id %s", id);
+        AI_LOG_FN_EXIT();
+        return false;
+    }
+
+    const std::unique_ptr<DobbyContainer> &container = it->second;
+
+    std::shared_ptr<DobbyBundle> bundle =
+        std::make_shared<DobbyBundle>(mUtilities, mEnvironment, bundlePath);
     if (mRunc->restore(id, bundle))
+    // if (mRunc->restore(id, container->bundle))
     {
         // Set the container state to running
         AI_LOG_INFO("Restored container %s", id.c_str());
         container->state = DobbyContainer::State::Running;
-        mContainers.emplace(containerId, std::move(container));
+        onPostRestoreHook(container);
+        // mContainers.emplace(containerId, std::move(container));
         AI_LOG_FN_EXIT();
         return true;
     }
+
+
     AI_LOG_WARN("Failed to restore container '%s'", id.c_str());
     AI_LOG_FN_EXIT();
     return false;
@@ -2348,12 +2378,36 @@ bool DobbyManager::onPreCheckpointHook(const std::unique_ptr<DobbyContainer> &co
     // Attempt to run the plugins specified in the config file
     if (!container->rdkPluginManager->runPlugins(IDobbyRdkPlugin::HintFlags::PreCheckpoint))
     {
-        AI_LOG_ERROR("Failure in postInstallation hook");
+        AI_LOG_ERROR("Failure in preCheckpoint hook");
         AI_LOG_FN_EXIT();
         return false;
     }
 
     AI_LOG_INFO("Successfully ran preCheckpoint hook");
+    AI_LOG_FN_EXIT();
+    return true;
+}
+
+bool DobbyManager::onPostRestoreHook(const std::unique_ptr<DobbyContainer> &container)
+{
+    AI_LOG_FN_ENTRY();
+
+    // Make sure we've initialised rdkPluginManager
+    if (container->rdkPluginManager == nullptr)
+    {
+        AI_LOG_ERROR("Could not run postRestore hook as plugin manager is null");
+        return false;
+    }
+
+    // Attempt to run the plugins specified in the config file
+    if (!container->rdkPluginManager->runPlugins(IDobbyRdkPlugin::HintFlags::PostRestore))
+    {
+        AI_LOG_ERROR("Failure in postRestore hook");
+        AI_LOG_FN_EXIT();
+        return false;
+    }
+
+    AI_LOG_INFO("Successfully ran postRestore hook");
     AI_LOG_FN_EXIT();
     return true;
 }
@@ -2528,6 +2582,12 @@ void DobbyManager::onChildExit()
 
             handleContainerTerminate(id, container, status);
 
+            if (container->state == DobbyContainer::State::Checkpoint)
+            {
+                AI_LOG_INFO("container %s is in Checkpoint state, omitting removal", id.c_str());
+                mContainerExecPids.erase(id);
+                continue;
+            }
             if (!container->shouldRestart(status) || !restartContainer(id, container))
             {
                 // remove the container, this should free all the resources

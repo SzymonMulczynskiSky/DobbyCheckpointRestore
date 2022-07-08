@@ -108,6 +108,14 @@ pid_t DobbyRdkPluginUtils::getContainerPid() const
     // Must be running a non-OCI hook point
     if (!mState)
     {
+        if (mConf)
+        {
+            AI_LOG_INFO("mConf has path: %s", mConf->root->path);
+        }
+        else
+        {
+            AI_LOG_INFO("mConf is empty");
+        }
         AI_LOG_ERROR_EXIT("Unknown container state - couldn't get pid. Are you running in a non-OCI hook?");
         return 0;
     }

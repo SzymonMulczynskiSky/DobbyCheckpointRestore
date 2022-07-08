@@ -634,8 +634,7 @@ bool DobbyRunC::checkpoint(const ContainerId& id) const
     AI_LOG_FN_EXIT();
 
     // get the return code, 0 for success, 1 for failure
-    // return (WEXITSTATUS(status) == EXIT_SUCCESS);
-    return 0;
+    return (WEXITSTATUS(status) == EXIT_SUCCESS);
 }
 
 // -----------------------------------------------------------------------------
@@ -659,6 +658,7 @@ bool DobbyRunC::restore(const std::string& id,
 
     // create a path to the pid file to write to
     const std::string pidFilePath(bundle->path() + "/container.pid");
+    AI_LOG_INFO("DEDEBUG BUNDLE PATH TO CRUN:     %s", bundle->path().c_str());
 
     std::vector<const char *> args =
     {
@@ -698,8 +698,7 @@ bool DobbyRunC::restore(const std::string& id,
     AI_LOG_FN_EXIT();
 
     // get the return code, 0 for success, 1 for failure
-    // return (WEXITSTATUS(status) == EXIT_SUCCESS);
-    return true;
+    return (WEXITSTATUS(status) == EXIT_SUCCESS);
 }
 
 // -----------------------------------------------------------------------------
