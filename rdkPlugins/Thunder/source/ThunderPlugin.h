@@ -76,6 +76,10 @@ public:
 
     bool postHalt() final;
 
+    bool preCheckpoint() final;
+
+    bool postRestore() final;
+
 public:
     std::vector<std::string> getDependencies() const override;
 

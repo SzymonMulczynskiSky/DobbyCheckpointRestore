@@ -99,7 +99,9 @@ unsigned ThunderPlugin::hookHints() const
         IDobbyRdkPlugin::HintFlags::PostInstallationFlag |
         IDobbyRdkPlugin::HintFlags::PreCreationFlag |
         IDobbyRdkPlugin::HintFlags::CreateRuntimeFlag |
-        IDobbyRdkPlugin::HintFlags::PostHaltFlag);
+        IDobbyRdkPlugin::HintFlags::PostHaltFlag |
+        IDobbyRdkPlugin::HintFlags::PreCheckpoint |
+        IDobbyRdkPlugin::HintFlags::PostRestore);
 }
 
 // Begin Hook Methods
@@ -322,6 +324,24 @@ bool ThunderPlugin::postHalt()
         AI_LOG_ERROR_EXIT("Failed to delete Thunder iptables rules for '%s'", mUtils->getContainerId().c_str());
         return false;
     }
+
+    AI_LOG_FN_EXIT();
+    return true;
+}
+
+bool ThunderPlugin::preCheckpoint()
+{
+    AI_LOG_FN_ENTRY();
+    // postHalt();
+
+    AI_LOG_FN_EXIT();
+    return true;
+}
+
+bool ThunderPlugin::postRestore()
+{
+    AI_LOG_FN_ENTRY();
+    // createRuntime();
 
     AI_LOG_FN_EXIT();
     return true;
