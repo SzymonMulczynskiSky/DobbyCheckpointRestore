@@ -880,12 +880,17 @@ bool DobbyRdkPluginManager::runPlugins(const IDobbyRdkPlugin::HintFlags &hookPoi
 
     // Determine the order of launching based on the dependencies.
     std::vector<std::string> launchOrder;
-    if (hookPoint < IDobbyRdkPlugin::HintFlags::PostHaltFlag)
+    if (hookPoint == IDobbyRdkPlugin::HintFlags::PostRestore || hookPoint < IDobbyRdkPlugin::HintFlags::PostHaltFlag)
     {
+        if (hookPoint == IDobbyRdkPlugin::HintFlags::PostRestore)
+            AI_LOG_INFO("hookPoint == IDobbyRdkPlugin::HintFlags::PostRestore");
+        if (hookPoint < IDobbyRdkPlugin::HintFlags::PostHaltFlag)
+            AI_LOG_INFO("hookPoint < IDobbyRdkPlugin::HintFlags::PostHaltFlag");
         launchOrder = mDependencySolver->getOrderOfDependency();
     }
     else
     {
+        AI_LOG_INFO("hookPoint check else");
         // Reverse the order for the shutdown hooks, so that the plugins
         // on which other plugins depend are shut down later.
         launchOrder = mDependencySolver->getReversedOrderOfDependency();

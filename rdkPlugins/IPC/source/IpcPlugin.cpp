@@ -70,10 +70,18 @@ IpcPlugin::IpcPlugin(std::shared_ptr<rt_dobby_schema> &containerConfig,
 unsigned IpcPlugin::hookHints() const
 {
     return (
-        IDobbyRdkPlugin::HintFlags::PostInstallationFlag);
+        IDobbyRdkPlugin::HintFlags::PostInstallationFlag | IDobbyRdkPlugin::HintFlags::PostRestore );
 }
 
 // Begin Hook Methods
+
+bool  IpcPlugin::postRestore()
+{
+    AI_LOG_FN_ENTRY();
+    // postInstallation();
+    AI_LOG_FN_EXIT();
+    return true;
+}
 
 /**
  * @brief OCI Hook - Run in host namespace

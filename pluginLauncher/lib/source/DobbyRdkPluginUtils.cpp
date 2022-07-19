@@ -108,13 +108,13 @@ pid_t DobbyRdkPluginUtils::getContainerPid() const
     // Must be running a non-OCI hook point
     if (!mState)
     {
-        if (mConf)
+        FILE* contpid = fopen("/opt/persistent/rdkservices/Cobalt-0/Container/container.pid", "r");
+        if (contpid)
         {
-            AI_LOG_INFO("mConf has path: %s", mConf->root->path);
-        }
-        else
-        {
-            AI_LOG_INFO("mConf is empty");
+            int pid;
+            fscanf(contpid, "%d", &pid);
+            AI_LOG_WARN("RETURNING PID FROM Cobalt-0 file: %d", pid);
+            return static_cast<pid_t>(pid);
         }
         AI_LOG_ERROR_EXIT("Unknown container state - couldn't get pid. Are you running in a non-OCI hook?");
         return 0;

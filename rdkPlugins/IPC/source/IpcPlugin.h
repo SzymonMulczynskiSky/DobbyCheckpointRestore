@@ -56,6 +56,7 @@ public:
 
 public:
     bool postInstallation() override;
+    bool postRestore() override;
 
 public:
     std::vector<std::string> getDependencies() const override;
