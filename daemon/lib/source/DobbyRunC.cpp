@@ -606,7 +606,7 @@ bool DobbyRunC::checkpoint(const ContainerId& id) const
         "--shell-job",
         "--tcp-established",
         "--image-path", mCriuImagePath.c_str(),
-        "--work-path=", mCriuImagePath.c_str(),
+        "--work-path", mCriuImagePath.c_str(),
         "--ext-unix-sk"
     };
     args.push_back(id.c_str());
@@ -670,7 +670,7 @@ bool DobbyRunC::restore(const std::string& id,
         "--tcp-established",
         "--detach",
         "--image-path", mCriuImagePath.c_str(),
-        "--work-path=", mCriuImagePath.c_str(),
+        "--work-path", mCriuImagePath.c_str(),
         "--ext-unix-sk"
     };
     args.push_back(id.c_str());
