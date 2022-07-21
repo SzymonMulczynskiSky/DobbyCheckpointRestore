@@ -1564,7 +1564,6 @@ bool DobbyManager::restoreContainer(const std::string& id)
     std::lock_guard<std::mutex> locker(mLock);
     ContainerId containerId = ContainerId::create(id);
 
-    const std::string bundlePath("/opt/persistent/rdkservices/Cobalt-0/Container");
 /*
 //----------  put the container back to list  ----------------------------------
     // Parse the bundle's json config
@@ -1623,9 +1622,15 @@ bool DobbyManager::restoreContainer(const std::string& id)
 
     const std::unique_ptr<DobbyContainer> &container = it->second;
 
-    std::shared_ptr<DobbyBundle> bundle =
-        std::make_shared<DobbyBundle>(mUtilities, mEnvironment, bundlePath);
-    if (mRunc->restore(id, bundle))
+
+// --------- b u n d l e   p a t h    h a r d c o d e   s t a r t -------------------------------------------------
+        AI_LOG_INFO("DEDEBUG Bundle path read from container data: %s", container->bundle->path().c_str());
+        const std::string bundlePath("/opt/persistent/ContainerBundles/Cobalt-0");
+        std::shared_ptr<DobbyBundle> bundle =
+            std::make_shared<DobbyBundle>(mUtilities, mEnvironment, bundlePath);
+        AI_LOG_INFO("!!! Overriding bundle path to give a hardcode - otherwise crun will fail on path compare !!!");
+        if (mRunc->restore(id, bundle))
+// ---------- b u n d l e   p a t h   h a r d c o d e   e n d -----------------------------------------------------
     // if (mRunc->restore(id, container->bundle))
     {
         // Set the container state to running
