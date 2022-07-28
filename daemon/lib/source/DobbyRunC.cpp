@@ -663,7 +663,7 @@ bool DobbyRunC::restore(const std::string& id,
     std::vector<const char *> args =
     {
         "restore",
-        "--bundle", bundle->path().c_str(),
+        "--bundle", realpath(bundle->path().c_str(), NULL),
         "--console-socket", mConsoleSocket.c_str(),
         "--pid-file", pidFilePath.c_str(),
         "--shell-job",
