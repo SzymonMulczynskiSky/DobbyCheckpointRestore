@@ -1624,14 +1624,14 @@ bool DobbyManager::restoreContainer(const std::string& id)
 
 
 // --------- b u n d l e   p a t h    h a r d c o d e   s t a r t -------------------------------------------------
-        AI_LOG_INFO("DEDEBUG Bundle path read from container data: %s", container->bundle->path().c_str());
-        const std::string bundlePath("/opt/persistent/ContainerBundles/Cobalt-0");
-        std::shared_ptr<DobbyBundle> bundle =
-            std::make_shared<DobbyBundle>(mUtilities, mEnvironment, bundlePath);
-        AI_LOG_INFO("!!! Overriding bundle path to give a hardcode - otherwise crun will fail on path compare !!!");
-        if (mRunc->restore(id, bundle))
+        // AI_LOG_INFO("DEDEBUG Bundle path read from container data: %s", container->bundle->path().c_str());
+        // const std::string bundlePath("/opt/persistent/ContainerBundles/Cobalt-0");
+        // std::shared_ptr<DobbyBundle> bundle =
+        //     std::make_shared<DobbyBundle>(mUtilities, mEnvironment, bundlePath);
+        // AI_LOG_INFO("!!! Overriding bundle path to give a hardcode - otherwise crun will fail on path compare !!!");
+        // if (mRunc->restore(id, bundle))
 // ---------- b u n d l e   p a t h   h a r d c o d e   e n d -----------------------------------------------------
-    // if (mRunc->restore(id, container->bundle))
+    if (mRunc->restore(id, container->bundle))
     {
         // Set the container state to running
         AI_LOG_INFO("Restored container %s", id.c_str());
